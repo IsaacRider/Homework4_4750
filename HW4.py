@@ -20,7 +20,7 @@
 # number (smaller row number has higher priority).
 
 import time
-import numpy as np
+import numpy as np # type: ignore
 import copy
 
 ROWS = 5
@@ -30,6 +30,13 @@ O_PLAYER = 'O'
 EMPTY = ' '
 
 class FourInARow:
+    DIRECTIONS = [
+        (0, 1),   # Horizontal
+        (1, 0),   # Vertical
+        (1, 1),   # Diagonal down-right
+        (1, -1)   # Diagonal down-left
+    ]
+
     def __init__(self):
         self.board = [[EMPTY for _ in range(COLS)] for _ in range(ROWS)]
         self.board[3][4] = X_PLAYER  # Player 1's first move
@@ -79,22 +86,85 @@ class FourInARow:
         return consecutive == 4
 
     def get_available_moves(self):
-        """ Get a list of valid moves """
+        """ Get a list of valid moves sorted by column and then row """
         moves = []
-        for row in range(ROWS):
-            for col in range(COLS):
+        for col in range(COLS):
+            for row in range(ROWS):
                 if self.is_valid_move(row, col):
                     # Add move if it is adjacent to existing pieces
-                    if any(self.board[r][c] != EMPTY for r in range(max(0, row-1), min(ROWS, row+2)) for c in range(max(0, col-1), min(COLS, col+2))):
+                    if any(self.board[r][c] != EMPTY 
+                       for r in range(max(0, row-1), min(ROWS, row+2)) 
+                       for c in range(max(0, col-1), min(COLS, col+2))):
                         moves.append((row, col))
+    # Tie-breaking: sort by column first, then by row
+        moves.sort(key=lambda x: (x[1], x[0]))
         return moves
+    
+    def count_patterns(self, player):
+        two_side_open_3 = 0
+        one_side_open_3 = 0
+        two_side_open_2 = 0
+        one_side_open_2 = 0
 
-    def evaluate_board(self):
+        for row in range(ROWS):
+            for col in range(COLS):
+                if self.board[row][col] != player:
+                    continue
+                for delta_row, delta_col in self.DIRECTIONS:
+                    # Check for 3-in-a-row
+                    count = 1
+                    for i in range(1, 4):
+                        r = row + delta_row * i
+                        c = col + delta_col * i
+                        if 0 <= r < ROWS and 0 <= c < COLS and self.board[r][c] == player:
+                            count += 1
+                        else:
+                            break
+
+                    if count == 3:
+                        pre_r = row - delta_row
+                        pre_c = col - delta_col
+                        post_r = row + delta_row * 3
+                        post_c = col + delta_col * 3
+                        pre_open = (0 <= pre_r < ROWS and 0 <= pre_c < COLS and self.board[pre_r][pre_c] == EMPTY)
+                        post_open = (0 <= post_r < ROWS and 0 <= post_c < COLS and self.board[post_r][post_c] == EMPTY)
+                        if pre_open and post_open:
+                            two_side_open_3 += 1
+                        elif pre_open or post_open:
+                            one_side_open_3 += 1
+
+                    # Check for 2-in-a-row
+                    if count == 2:
+                        pre_r = row - delta_row
+                        pre_c = col - delta_col
+                        post_r = row + delta_row * 2
+                        post_c = col + delta_col * 2
+                        pre_open = (0 <= pre_r < ROWS and 0 <= pre_c < COLS and self.board[pre_r][pre_c] == EMPTY)
+                        post_open = (0 <= post_r < ROWS and 0 <= post_c < COLS and self.board[post_r][post_c] == EMPTY)
+                        if pre_open and post_open:
+                            two_side_open_2 += 1
+                        elif pre_open or post_open:
+                            one_side_open_2 += 1
+
+        return two_side_open_3, one_side_open_3, two_side_open_2, one_side_open_2
+
+    def evaluate_board(self, player):
         """ Evaluate the board based on the heuristic function """
-        # The heuristic function implementation goes here
-        # Placeholder heuristic evaluation
-        score = 0
-        return score
+        opponent = X_PLAYER if player == O_PLAYER else O_PLAYER
+
+        # Count patterns for the current player
+        me_two_open_3, me_one_open_3, me_two_open_2, me_one_open_2 = self.count_patterns(player)
+
+        # Count patterns for the opponent
+        opp_two_open_3, opp_one_open_3, opp_two_open_2, opp_one_open_2 = self.count_patterns(opponent)
+
+        # Calculate heuristic score based on the provided formula
+        h = (200 * me_two_open_3) - (80 * opp_two_open_3) \
+            + (150 * me_one_open_3) - (40 * opp_one_open_3) \
+            + (20 * me_two_open_2) - (15 * opp_two_open_2) \
+            + (5 * me_one_open_2) - (2 * opp_one_open_2)
+
+        return h
 
     def minimax(self, depth, is_maximizing, alpha, beta, player, ply_limit):
         opponent = X_PLAYER if player == O_PLAYER else O_PLAYER
@@ -104,7 +174,7 @@ class FourInARow:
         elif winner == opponent:
             return -1000, None
         elif depth == ply_limit or not self.get_available_moves():
-            return self.evaluate_board(), None
+            return self.evaluate_board(player), None
 
         best_move = None
         if is_maximizing:
