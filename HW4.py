@@ -41,6 +41,7 @@ class FourInARow:
         self.board = [[EMPTY for _ in range(COLS)] for _ in range(ROWS)]
         self.board[3][4] = X_PLAYER  # Player 1's first move
         self.player_turn = O_PLAYER
+        self.nodes_generated = 0  # Initialize node counter
 
     def is_valid_move(self, row, col):
         return 0 <= row < ROWS and 0 <= col < COLS and self.board[row][col] == EMPTY
@@ -169,6 +170,10 @@ class FourInARow:
     def minimax(self, depth, is_maximizing, alpha, beta, player, ply_limit):
         opponent = X_PLAYER if player == O_PLAYER else O_PLAYER
         winner = self.check_winner()
+        
+        # Increment node counter for each new state explored
+        self.nodes_generated += 1
+        
         if winner == player:
             return 1000, None
         elif winner == opponent:
@@ -213,6 +218,9 @@ def play_game():
     while not game.check_winner() and game.get_available_moves():
         current_player = X_PLAYER if game.player_turn == X_PLAYER else O_PLAYER
         ply_limit = 2 if current_player == X_PLAYER else 4
+        
+        # Reset node count before each move
+        game.nodes_generated = 0
 
         start_time = time.time()
         score, best_move = game.minimax(0, True, -float('inf'), float('inf'), current_player, ply_limit)
@@ -221,7 +229,7 @@ def play_game():
         if best_move:
             game.make_move(best_move[0], best_move[1], current_player)
             game.print_board()
-            print(f"Player {current_player} moves to {best_move}. Minimax Score: {score}, Time: {elapsed_time:.4f}s")
+            print(f"Player {current_player} moves to {best_move}. Minimax Score: {score}, Nodes Generated: {game.nodes_generated}, Time: {elapsed_time:.4f}s")
         game.player_turn = O_PLAYER if game.player_turn == X_PLAYER else X_PLAYER
         move_count += 1
 
